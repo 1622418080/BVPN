@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  role         UserRole     @default(USER)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  orders        Order[]
+  subscriptions Subscription[]
+  vpnAccounts   VpnAccount[]
+}
+
+model Plan {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  description    String
+  priceCents     Int
+  currency       String   @default("USD")
+  durationDays   Int
+  trafficLimitGb Int
+  maxDevices     Int      @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders        Order[]
+  subscriptions Subscription[]
+
+  @@index([isActive, priceCents])
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  userId         String
+  planId         String
+  amountCents    Int
+  currency       String
+  status         OrderStatus @default(PENDING)
+  paymentChannel String?
+  providerRef    String?
+  checkoutUrl    String?
+  paidAt         DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id])
+  plan     Plan      @relation(fields: [planId], references: [id])
+  payments Payment[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@index([providerRef])
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  orderId        String
+  channel        String
+  providerTradeNo String?
+  status         String
+  rawPayload     Json?
+  createdAt      DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@index([providerTradeNo])
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  userId         String
+  planId         String
+  startAt        DateTime
+  endAt          DateTime
+  trafficLimitGb Int
+  status         SubscriptionStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status, endAt])
+  @@index([status, endAt])
+}
+
+model VpnNode {
+  id        String   @id @default(cuid())
+  name      String
+  region    String
+  apiUrl    String
+  publicIp  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  accounts VpnAccount[]
+
+  @@index([isActive])
+}
+
+model VpnAccount {
+  id         String   @id @default(cuid())
+  userId     String
+  nodeId     String
+  publicKey  String
+  assignedIp String
+  configText String
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User    @relation(fields: [userId], references: [id])
+  node VpnNode @relation(fields: [nodeId], references: [id])
+
+  @@unique([userId, nodeId])
+  @@index([userId, isActive])
+}

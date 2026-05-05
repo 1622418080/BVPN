@@ -1,0 +1,21 @@
+{
+  "name": "bvpn",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n frontend,backend,agent -c cyan,green,magenta \"npm run dev -w apps/frontend\" \"npm run dev -w apps/backend\" \"npm run dev -w apps/agent\"",
+    "build": "npm run build -w apps/backend && npm run build -w apps/agent && npm run build -w apps/frontend",
+    "start": "concurrently -n backend,agent,frontend \"npm run start -w apps/backend\" \"npm run start -w apps/agent\" \"npm run start -w apps/frontend\"",
+    "clean": "rimraf apps/*/dist apps/*/.next apps/agent/data",
+    "prisma:generate": "npm run prisma:generate -w apps/backend",
+    "prisma:migrate": "npm run prisma:migrate -w apps/backend",
+    "prisma:studio": "npm run prisma:studio -w apps/backend",
+    "seed": "npm run seed -w apps/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.10"
+  }
+}
