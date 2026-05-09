@@ -7,13 +7,22 @@
 }
 
 body {
-  background: #050816;
+  background: #0a0a0a;
   color: #f8fafc;
 }
 
-.glass {
-  background: rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(16px);
+@layer utilities {
+  .bg-grid {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .bg-glow {
+    background: radial-gradient(ellipse 50% 40% at 50% 0%, rgba(37, 99, 235, 0.15), transparent);
+  }
+
+  .bg-glow-alt {
+    background: radial-gradient(ellipse 40% 30% at 70% 100%, rgba(124, 58, 237, 0.1), transparent);
+  }
 }

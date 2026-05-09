@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 
 export function getToken() {
   if (typeof window === "undefined") return "";
@@ -16,25 +16,36 @@ export function logout() {
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string>)
-  };
+  const headers = new Headers(options.headers);
 
-  const response = await fetch(`${API_URL}${path}`, {
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `HTTP_${response.status}`);
+    if (response.status === 401) {
+      logout();
+      throw new Error("登录已过期，请重新登录");
+    }
+    const contentType = response.headers.get("content-type") || "";
+    const data = contentType.includes("application/json")
+      ? await response.json().catch(() => ({}))
+      : {};
+    throw new Error(data.error || data.message || `HTTP_${response.status}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("text/plain")) {
     return (await response.text()) as T;
+  }
+  if (response.status === 204) {
+    return undefined as T;
   }
   return response.json() as Promise<T>;
 }

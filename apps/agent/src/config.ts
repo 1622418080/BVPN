@@ -1,5 +1,10 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
 import { z } from "zod";
+
+dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), "../../.env") });
+dotenv.config({ path: "/app/.env" });
 
 const schema = z.object({
   AGENT_PORT: z.coerce.number().default(4100),

@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { z } from "zod";
 import { config } from "../config.js";
 import { prisma } from "../lib/prisma.js";
+import { asyncHandler } from "../lib/async-handler.js";
 import { requireAuth } from "../middleware/auth.js";
 import { activatePaidOrder } from "../services/provision.js";
 
@@ -31,7 +32,7 @@ function buildLineItem(order: { amountCents: number; currency: string; plan: { n
   };
 }
 
-paymentsRouter.post("/stripe/checkout", requireAuth, async (req, res) => {
+paymentsRouter.post("/stripe/checkout", requireAuth, asyncHandler(async (req, res, next) => {
   const { orderId } = z.object({ orderId: z.string() }).parse(req.body);
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId: req.auth!.sub },
@@ -63,7 +64,7 @@ paymentsRouter.post("/stripe/checkout", requireAuth, async (req, res) => {
   });
 
   res.json({ checkoutUrl: session.url });
-});
+}));
 
 paymentsRouter.post("/stripe/webhook", async (req, res) => {
   const stripe = getStripe();
@@ -91,15 +92,14 @@ paymentsRouter.post("/stripe/webhook", async (req, res) => {
     const session = event.data.object as Stripe.Checkout.Session;
     const orderId = session.metadata?.orderId || session.client_reference_id;
     if (orderId) {
-      await prisma.payment.create({
-        data: {
-          orderId,
-          channel: "stripe",
-          providerTradeNo: session.id,
-          status: "paid",
-          rawPayload: event as unknown as object
-        }
+      const exists = await prisma.payment.findFirst({
+        where: { orderId, providerTradeNo: session.id }
       });
+      if (!exists) {
+        await prisma.payment.create({
+          data: { orderId, channel: "stripe", providerTradeNo: session.id, status: "paid" }
+        });
+      }
       await activatePaidOrder(orderId);
     }
   }
@@ -107,7 +107,7 @@ paymentsRouter.post("/stripe/webhook", async (req, res) => {
   res.json({ received: true });
 });
 
-paymentsRouter.post("/crypto/create", requireAuth, async (req, res) => {
+paymentsRouter.post("/crypto/create", requireAuth, asyncHandler(async (req, res, next) => {
   const { orderId } = z.object({ orderId: z.string() }).parse(req.body);
   const order = await prisma.order.findFirst({
     where: { id: orderId, userId: req.auth!.sub },
@@ -130,9 +130,9 @@ paymentsRouter.post("/crypto/create", requireAuth, async (req, res) => {
   });
 
   res.json({ checkoutUrl });
-});
+}));
 
-paymentsRouter.post("/dev/mark-paid", requireAuth, async (req, res) => {
+paymentsRouter.post("/dev/mark-paid", requireAuth, asyncHandler(async (req, res, next) => {
   if (!config.ENABLE_DEV_PAYMENTS) {
     return res.status(404).json({ error: "NOT_FOUND" });
   }
@@ -141,4 +141,4 @@ paymentsRouter.post("/dev/mark-paid", requireAuth, async (req, res) => {
   if (!order) return res.status(404).json({ error: "ORDER_NOT_FOUND" });
   const paid = await activatePaidOrder(order.id);
   res.json({ order: paid });
-});
+}));

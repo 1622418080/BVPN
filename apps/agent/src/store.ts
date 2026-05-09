@@ -22,7 +22,13 @@ function init() {
   if (!fs.existsSync(peersFile)) {
     fs.writeFileSync(peersFile, "[]");
   }
-  peers = JSON.parse(fs.readFileSync(peersFile, "utf8")) as PeerRecord[];
+  try {
+    peers = JSON.parse(fs.readFileSync(peersFile, "utf8")) as PeerRecord[];
+  } catch {
+    console.error(`Corrupted peers.json, backing up and starting fresh`);
+    fs.renameSync(peersFile, `${peersFile}.corrupted.${Date.now()}`);
+    peers = [];
+  }
   initialized = true;
 }
 
@@ -45,17 +51,15 @@ function persist(): Promise<void> {
 
 export function readPeers(): PeerRecord[] {
   init();
-  return peers;
+  return [...peers];
 }
 
 export function addPeer(peer: PeerRecord) {
   init();
+  if (peers.some((existing) => existing.userId === peer.userId)) {
+    throw new Error("PEER_ALREADY_EXISTS");
+  }
   peers.push(peer);
   return persist();
 }
 
-export function writePeers(newPeers: PeerRecord[]) {
-  init();
-  peers = newPeers;
-  return persist();
-}

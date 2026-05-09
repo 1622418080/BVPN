@@ -29,18 +29,45 @@ bvpn/
 
 ## 本地启动
 
+### 方式一：直接运行
+
 ```bash
 cp .env.example .env
 npm install
 npm run prisma:generate
 npm run prisma:migrate
 npm run seed
-npm run dev
+make dev
 ```
 
 Windows PowerShell 如果提示 `npm.ps1` 被禁止执行，请把上面的 `npm` 临时替换成 `npm.cmd`。
 
-然后访问：
+### 方式二：Docker Compose（开发模式，含热重载）
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+```
+
+或使用 Makefile：
+
+```bash
+make up-dev
+```
+
+### 方式三：Docker Compose（生产模式）
+
+```bash
+make up
+```
+
+### 验证
+
+- 类型检查：`make typecheck`
+- 构建：`make build`
+- 初始化数据：`make seed`
+
+访问：
 
 - 前端：http://localhost:3000
 - 后端：http://localhost:4000/health

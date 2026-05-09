@@ -12,7 +12,6 @@ RUN npm install --production=false
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/agent ./apps/agent
-COPY apps/backend/package.json apps/backend/
 WORKDIR /app/apps/agent
 RUN npm run build
 

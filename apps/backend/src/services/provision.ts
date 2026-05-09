@@ -18,6 +18,7 @@ export async function provisionWireGuardForUser(userId: string) {
 
   const response = await fetch(`${node.apiUrl}/peers`, {
     method: "POST",
+    signal: AbortSignal.timeout(config.AGENT_REQUEST_TIMEOUT_MS),
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.AGENT_TOKEN}`
@@ -44,41 +45,49 @@ export async function provisionWireGuardForUser(userId: string) {
 }
 
 export async function activatePaidOrder(orderId: string) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { plan: true }
-  });
-  if (!order) throw new Error("ORDER_NOT_FOUND");
-  if (order.status === "PAID") return order;
-
   const now = new Date();
-  const endAt = new Date(now.getTime() + order.plan.durationDays * 86_400_000);
 
   const paidOrder = await prisma.$transaction(async (tx) => {
+    const current = await tx.order.findUnique({
+      where: { id: orderId },
+      include: { plan: true }
+    });
+    if (!current) throw new Error("ORDER_NOT_FOUND");
+    if (current.status === "PAID") return current;
+
+    const latestActive = await tx.subscription.findFirst({
+      where: {
+        userId: current.userId,
+        status: "ACTIVE",
+        endAt: { gt: now }
+      },
+      orderBy: { endAt: "desc" }
+    });
+    const startAt = latestActive?.endAt && latestActive.endAt > now ? latestActive.endAt : now;
+    const endAt = new Date(startAt.getTime() + current.plan.durationDays * 86_400_000);
+
     const updated = await tx.order.update({
-      where: { id: order.id },
+      where: { id: current.id },
       data: { status: "PAID", paidAt: now }
     });
 
     await tx.subscription.create({
       data: {
-        userId: order.userId,
-        planId: order.planId,
-        startAt: now,
+        userId: current.userId,
+        planId: current.planId,
+        startAt,
         endAt,
-        trafficLimitGb: order.plan.trafficLimitGb
+        trafficLimitGb: current.plan.trafficLimitGb
       }
     });
 
     return updated;
   });
 
-  // Provision VPN after payment succeeds. If this fails, the payment is
-  // still captured and the user can retry via /vpn/provision.
   try {
-    await provisionWireGuardForUser(order.userId);
+    await provisionWireGuardForUser(paidOrder.userId);
   } catch (error) {
-    console.error(`VPN provision failed for user ${order.userId} after payment:`, error);
+    console.error(`[order=${orderId}] VPN provision failed for user ${paidOrder.userId}:`, error);
   }
 
   return paidOrder;

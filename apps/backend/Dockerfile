@@ -11,17 +11,18 @@ RUN npm install --production=false
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY apps/backend ./apps/backend
-COPY apps/agent/package.json apps/agent/
 WORKDIR /app/apps/backend
 RUN npm run prisma:generate && npm run build
 
 FROM base AS runner
+RUN apk add --no-cache openssl
 WORKDIR /app/apps/backend
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/backend/dist ./dist
 COPY --from=builder /app/apps/backend/package.json ./
-COPY --from=builder /app/apps/backend/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/backend/prisma ./prisma
+RUN npx prisma generate
 ENV NODE_ENV=production
 EXPOSE 4000
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://localhost:4000/health || exit 1
-CMD ["node", "dist/src/main.js"]
+HEALTHCHECK --interval=15s --timeout=3s --retries=2 CMD wget -qO- http://127.0.0.1:4000/health || exit 1
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]

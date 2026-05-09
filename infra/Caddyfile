@@ -1,0 +1,16 @@
+{$CADDY_GLOBAL}
+
+:80 {
+    @api_reverse path_regexp ^/(auth|plans|orders|payments|vpn|dashboard|health)(/|$)
+    @admin_api path /admin/api/*
+    reverse_proxy @api_reverse backend:4000
+    reverse_proxy @admin_api backend:4000
+
+    reverse_proxy frontend:3000
+
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}

@@ -3,28 +3,20 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, money } from "../../lib/api";
+import type { Plan, PlansResponse } from "../../lib/types";
 import { Nav } from "../../components/Nav";
-
-type Plan = {
-  id: string;
-  name: string;
-  description: string;
-  priceCents: number;
-  currency: string;
-  durationDays: number;
-  trafficLimitGb: number;
-  maxDevices: number;
-};
 
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [error, setError] = useState("");
   const [loadingId, setLoadingId] = useState("");
+  const [loadingPlans, setLoadingPlans] = useState(true);
 
   useEffect(() => {
-    api<{ plans: Plan[] }>("/plans")
+    api<PlansResponse>("/plans")
       .then((data) => setPlans(data.plans))
-      .catch((e) => setError(e instanceof Error ? e.message : "加载套餐失败"));
+      .catch((e) => setError(e instanceof Error ? e.message : "加载套餐失败"))
+      .finally(() => setLoadingPlans(false));
   }, []);
 
   async function buy(planId: string, channel: "stripe" | "crypto" | "dev") {
@@ -70,6 +62,11 @@ export default function PricingPage() {
           {error && <p className="mt-4 rounded-2xl bg-red-500/10 p-3 text-red-200">{error}</p>}
         </div>
         <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {loadingPlans && (
+            <div className="glass rounded-3xl p-6 text-center text-slate-300 md:col-span-3">
+              套餐加载中...
+            </div>
+          )}
           {plans.map((plan) => (
             <div key={plan.id} className="glass rounded-3xl p-6">
               <h2 className="text-2xl font-bold">{plan.name}</h2>
@@ -103,6 +100,11 @@ export default function PricingPage() {
               </div>
             </div>
           ))}
+          {!loadingPlans && !plans.length && (
+            <div className="glass rounded-3xl p-6 text-center text-slate-300 md:col-span-3">
+              暂无可购买套餐，请稍后再试。
+            </div>
+          )}
         </div>
         <p className="mt-8 text-center text-sm text-slate-500">
           未登录？先去 <Link href="/login" className="text-blue-300">登录</Link> 或 <Link href="/register" className="text-blue-300">注册</Link>
